@@ -1,0 +1,147 @@
+from PyQt6 import QtWidgets, uic
+from SECONDPAGE_UI import BlockPuzzle
+from BANGXEPHANG_UI import RankScreen # Import trang chơi game
+
+import json
+
+data = {
+    "đức": {"score": 136, "theme": 1},
+    "ĐỨC": {"score": 68, "theme": 1},
+    "ngân": {"score": 96, "theme": 1},
+    "hihi": {"score": 56, "theme": 1},
+    "gv": {"score": 40, "theme": 1},
+    "TestUser": {"score": 116, "theme": 1},
+    "Guest": {"score": 56, "theme": 1},
+    "fff": {"score": 76, "theme": 1}
+}
+
+with open("data.json", "w", encoding="utf-8") as f:
+    json.dump(data, f, indent=4, ensure_ascii=False)
+
+
+
+USER_DATA_FILE = "user_data.json"
+
+def load_user_data():
+    """Đọc dữ liệu người chơi từ file JSON"""
+    try:
+        with open(USER_DATA_FILE, "r") as file:
+            return json.load(file)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+def save_user_data(user_data):
+    """Lưu dữ liệu người chơi vào file JSON"""
+    try:
+        with open(USER_DATA_FILE, "w") as file:
+            json.dump(user_data, file, indent=4)
+    except Exception as e:
+        print(f"Lỗi khi lưu dữ liệu: {e}")
+
+class MainGame(QtWidgets.QMainWindow):
+    def __init__(self):
+        """Giao diện trang đầu tiên của game"""
+        super().__init__()
+        uic.loadUi("firstpage.ui", self)
+
+
+        self.user_data = load_user_data()
+        self.user_data_path = "user_data.json"
+        self.username = ""
+        self.score = 0
+        self.selected_theme = 1
+
+        self.btnstart.clicked.connect(self.start_game)  # Bắt đầu trò chơi
+        self.settings_Button.clicked.connect(self.open_settings)
+        self.leaderboardButton.clicked.connect(self.open_rank_screen)
+    def start_game(self):
+        """Chuyển sang trang chơi game với dữ liệu người chơi"""
+        name = self.nameInput.text().strip()
+        if not name:
+            QtWidgets.QMessageBox.warning(self, "Warning", "Please enter your name!")
+            return
+
+        if name in self.user_data:
+            self.score = self.user_data[name].get("score", 0)
+            self.selected_theme = self.user_data[name].get("theme", 1)
+            print(f"Welcome back, {name}! Your score: {self.score}, Theme: {self.selected_theme}")
+        else:
+            self.user_data[name] = {"score": 0, "theme": 1}
+            save_user_data(self.user_data)
+            print(f"New player created: {name}")
+
+        self.username = name
+
+        # Mở trang chơi game và ẩn firstpage
+        self.second_page = BlockPuzzle(self.username, self.user_data)
+        self.second_page.show()
+        self.hide()  # Ẩn firstpage thay vì đóng hẳn
+
+    def open_settings(self):
+        """Mở hộp thoại cài đặt"""
+        dialog = SettingsDialog(self, self.username, self.user_data)
+        if dialog.exec():
+            if self.username:  # Chỉ cập nhật nếu đã có username
+                self.selected_theme = self.user_data.get(self.username, {}).get("theme", 1)
+                print(f"Selected theme updated to: {self.selected_theme}")
+
+    def update_score(self, new_score):
+        """Cập nhật điểm số của người chơi và lưu lại"""
+        if self.username in self.user_data:
+            self.user_data[self.username]["score"] = max(self.user_data[self.username]["score"], new_score)
+            save_user_data(self.user_data)
+
+    def return_to_first_page(self):
+        """Quay lại trang chính"""
+        self.show()
+        self.username = ""  # Reset dữ liệu người chơi nếu cần
+        self.score = 0
+
+    def open_rank_screen(self):
+        try:
+            print("Đang mở bảng xếp hạng...")  # Kiểm tra xem hàm có chạy không
+            self.rank_screen = RankScreen(self.user_data_path, self.show)
+            self.rank_screen.show()
+            self.hide()
+            print("Bảng xếp hạng đã mở thành công!")  # Kiểm tra xem màn hình có mở không
+        except Exception as e:
+            print(f"Lỗi khi mở bảng xếp hạng: {e}")# Ẩn firstpage khi mở bảng xếp hạng
+
+class SettingsDialog(QtWidgets.QDialog):
+    def __init__(self, parent, username, user_data):
+        """Hộp thoại cài đặt với lựa chọn theme dựa trên điểm số"""
+        super().__init__(parent)
+        uic.loadUi("setting.ui", self)
+
+        self.username = username
+        self.user_data = user_data
+
+        self.score = user_data.get(username, {}).get("score", 0)
+        self.selected_theme = user_data.get(username, {}).get("theme", 1)
+
+        # Kích hoạt hoặc vô hiệu hóa theme dựa trên điểm số
+        self.theme1_button.setEnabled(True)
+        self.theme2_button.setEnabled(self.score >= 1000)
+        self.theme3_button.setEnabled(self.score >= 2000)
+
+        # Kết nối sự kiện cho các nút chọn theme
+        self.theme1_button.clicked.connect(lambda: self.select_theme(1))
+        self.theme2_button.clicked.connect(lambda: self.select_theme(2))
+        self.theme3_button.clicked.connect(lambda: self.select_theme(3))
+        self.ok_button.clicked.connect(self.accept)
+
+        self.update_ui()
+
+    def select_theme(self, theme_id):
+        """Thay đổi theme và cập nhật vào dữ liệu người chơi"""
+        self.selected_theme = theme_id
+        self.user_data[self.username]["theme"] = theme_id
+        save_user_data(self.user_data)
+        QtWidgets.QMessageBox.information(self, "Theme Updated", f"Theme {theme_id} has been selected!")
+        self.update_ui()
+
+    def update_ui(self):
+        """Cập nhật trạng thái các nút sau khi chọn theme"""
+        self.theme1_button.setChecked(self.selected_theme == 1)
+        self.theme2_button.setChecked(self.selected_theme == 2)
+        self.theme3_button.setChecked(self.selected_theme == 3)

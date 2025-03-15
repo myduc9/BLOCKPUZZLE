@@ -1,0 +1,9 @@
+import sys
+from PyQt6 import QtWidgets
+from FIRSTPAGE import MainGame  # Import giao diện từ file ui_main.py
+
+if __name__ == "__main__":
+   app = QtWidgets.QApplication(sys.argv)
+   window = MainGame()
+   window.show()
+   sys.exit(app.exec())
